@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<link rel="manifest" href="manifest.webmanifest">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미생물학 퀴즈</title>
+<meta name="theme-color" content="#ffb4c6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="미생물학">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  html, body { margin: 0; height: 100%; background: #fff7f2; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  #app { flex: 1; width: 100%; border: 0; display: block; background: #fff7f2; }
+  .w-cover { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+             gap: 12px; background: #fff7f2; text-align: center; padding: 24px; z-index: 10; color: #4a403a; }
+  .w-cover.on { display: flex; }
+  .w-cover img { width: 96px; height: 96px; border-radius: 24px; }
+  .w-btn { font: inherit; font-weight: 700; min-height: 46px; padding: 0 18px; border-radius: 16px; border: 0;
+           background: #ff8fab; color: #fff; cursor: pointer; }
+  .w-sub { background: #fff; color: #4a403a; border: 2px solid #f0e2d8; }
+  #bar { display: none; align-items: center; gap: 10px; padding: 10px 12px; background: #fff;
+         border-top: 2px solid #f0e2d8; font-size: .92rem; color: #4a403a; }
+  #bar.on { display: flex; }
+  #bar .txt { flex: 1; line-height: 1.45; }
+  #bar .w-btn { min-height: 40px; padding: 0 14px; }
+  .w-btn:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <div id="splash" class="w-cover on" role="status">
+    <img src="icon-192.png" alt="">
+    <b>불러오는 중이에요…</b>
+    <span id="slow" style="display:none">조금 오래 걸리네요.
+      <button class="w-btn w-sub" onclick="loadApp()">다시 시도</button></span>
+  </div>
+
+  <div id="offline" class="w-cover" role="alert">
+    <div style="font-size:3rem" aria-hidden="true">📡</div>
+    <b>인터넷 연결이 필요해요</b>
+    <span>와이파이나 데이터를 켠 뒤 다시 눌러 주세요.</span>
+    <button class="w-btn" onclick="loadApp()">다시 연결하기</button>
+  </div>
+
+  <iframe id="app" title="미생물학 학습 앱" allow="clipboard-write; fullscreen"></iframe>
+
+  <div id="bar" role="region" aria-label="앱 설치 안내">
+    <span class="txt" id="barTxt"></span>
+    <button class="w-btn" id="barGo" style="display:none">설치</button>
+    <button class="w-btn w-sub" id="barX" aria-label="안내 닫기">닫기</button>
+  </div>
+
+<script>
+  var APP_URL = 'https://script.google.com/macros/s/AKfycbzh9AIz_DFEKmT2gcrwRPEkpZ7dg2mNh17LAxMu8X06XWSs53g_Qf3MQKK60qIfpjlJuw/exec';
+
+  var ua = navigator.userAgent.toLowerCase();
+  function has(s) { return ua.indexOf(s) >= 0; }
+  var isIOS = has('iphone') || has('ipad') || has('ipod') || (has('macintosh') && navigator.maxTouchPoints > 1);
+  var isAndroid = has('android');
+  var isKakao = has('kakaotalk');
+  var isInApp = isKakao || has('naver(inapp') || has('instagram') || has('fban') || has('fbav') ||
+                has(' line/') || has('; wv)');
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+  var frame = document.getElementById('app');
+  var slowT = null, deferred = null;
+
+  /* ---------- 1. 카카오톡 등 인앱 브라우저에서 빠져나가기 ---------- */
+  if (isKakao) {
+    location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href);
+  } else if (isInApp && isAndroid) {
+    location.href = 'intent://' + location.href.replace('https://', '') +
+                    '#Intent;scheme=https;package=com.android.chrome;end';
+  }
+
+  /* ---------- 2. 웹앱 불러오기 ---------- */
+  function show(id, on) { document.getElementById(id).classList.toggle('on', on); }
+  function loadApp() {
+    show('offline', false);
+    if (!navigator.onLine) { show('splash', false); show('offline', true); return; }
+    show('splash', true);
+    document.getElementById('slow').style.display = 'none';
+    clearTimeout(slowT);
+    slowT = setTimeout(function () { document.getElementById('slow').style.display = 'inline'; }, 20000);
+    frame.src = APP_URL + '?app=1';
+  }
+  frame.addEventListener('load', function () {
+    if (!frame.src) return;
+    clearTimeout(slowT);
+    show('splash', false);
+  });
+  window.addEventListener('offline', function () { show('offline', true); });
+  window.addEventListener('online', function () { if (document.getElementById('offline').classList.contains('on')) loadApp(); });
+  loadApp();
+
+  /* ---------- 3. 설치 안내 ---------- */
+  var HIDE_KEY = 'bio-install-hide';
+  function hiddenRecently() {
+    try { var t = Number(localStorage.getItem(HIDE_KEY) || 0); return Date.now() - t < 7 * 86400000; } catch (e) { return false; }
+  }
+  function showBar(text, canInstall) {
+    if (isStandalone || hiddenRecently()) return;
+    document.getElementById('barTxt').innerHTML = text;
+    document.getElementById('barGo').style.display = canInstall ? 'inline-block' : 'none';
+    show('bar', true);
+  }
+  document.getElementById('barX').onclick = function () {
+    show('bar', false);
+    try { localStorage.setItem(HIDE_KEY, String(Date.now())); } catch (e) {}
+  };
+  document.getElementById('barGo').onclick = function () {
+    if (!deferred) return;
+    deferred.prompt();
+    deferred.userChoice.then(function () { deferred = null; show('bar', false); });
+  };
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferred = e;
+    showBar('📲 <b>홈 화면에 앱으로 설치</b>하면 더 빠르게 들어올 수 있어요!', true);
+  });
+  window.addEventListener('appinstalled', function () { show('bar', false); });
+
+  setTimeout(function () {
+    if (deferred || isStandalone) return;
+    if (isInApp && isIOS) {
+      showBar('⚠ 이 화면에서는 설치가 안 돼요. 오른쪽 아래 <b>···</b> 또는 <b>공유</b> → <b>Safari로 열기</b>를 눌러 주세요.', false);
+    } else if (isIOS && has('crios')) {
+      showBar('📲 주소창 옆 <b>공유(□↑)</b> → <b>홈 화면에 추가</b>를 눌러 주세요.', false);
+    } else if (isIOS) {
+      showBar('📲 아래 <b>공유(□↑)</b> → <b>홈 화면에 추가</b> → <b>추가</b>를 눌러 주세요.', false);
+    } else if (has('samsungbrowser')) {
+      showBar('📲 아래 <b>메뉴(≡)</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b>을 눌러 주세요.', false);
+    } else if (isAndroid) {
+      showBar('📲 오른쪽 위 <b>⋮</b> → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b>를 눌러 주세요.', false);
+    }
+  }, 4000);
+
+  /* ---------- 4. Service Worker 등록 ---------- */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+</script>
+</body>
+</html>
